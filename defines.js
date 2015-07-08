@@ -29,8 +29,8 @@ var rules = {
             // W域下资源
         }
         ,{
-            "pattern": /(?:http(?:s)?:)?\/\/([-\w]+\.google\.com)/g,
-            "replacement": "/!$1"
+            "pattern": /(['\"])(?:http(?:s)?:)?\/\/([-\w]+\.google\.com)/g,
+            "replacement": "$1/!$2"
             // 其它域资源
         }
         ,{
@@ -73,11 +73,11 @@ var rules = {
             "pathRegex": /\/rs=/,
             "pattern": /\.src=(\w)\b/g,
             "replacement": ".src=_DyRp($1)",
-            "insertHeader": 'window._DyRp=window._DyRp||function(a){if(typeof(a)==="string"){return a.replace(/^([htps:]+)?\\/\\//,"/!")}return a};'
+            "insertHeader": 'window._DyRp=window._DyRp||function(a){if(typeof(a)==="string"){var p=location.protocol+"//"+location.host;if(a.startsWith(p)){var h=a.indexOf("/!",8);if(h>0){a=a.substr(h);}else{return a;}}return a.replace(/^([htps:]+)?\\/\\//,"/!")}return a};'
             // js context: new Image dynamic load
         }
         ,{
-            "pattern": /"(?:[htps:]+)?\/\/(?=[-.\w]+\.google)/g,
+            "pattern": /"(?:[htps:]+)?\/\/(?=[-.\w]+\.(?:google|gstatic))/g,
             "replacement": '"/!'
             // js context: literal string host
         }
