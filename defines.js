@@ -16,12 +16,12 @@ var rules = {
             "pathRegex": /\/(search|webhp)/,
             "pattern": /onmousedown="[^\"]+?"/g,
             "replacement": "target=\"_blank\""
-            // 非ajax或手机搜索时，rwt直接输出在html中
+            // 直接/search;手机;js不可用: rwt将直接在html中
         }
         ,{
             "pattern": /(?:http(?:s)?:)?\/\/(?=[-\w]+\.gstatic)/g,
             "replacement": "/!"
-            // gstatic
+            // html.css: backgroud image from gstatic
         }
         ,{
             "pattern": /(?:http(?:s)?:)?\/\/www\.google\.com/g,
@@ -29,9 +29,9 @@ var rules = {
             // W域下资源
         }
         ,{
-            "pattern": /(['\"])(?:http(?:s)?:)?\/\/([-\w]+\.google\.com)/g,
+            "pattern": /(['\"])(?:http(?:s)?:)?\/\/((?:id|ipv\d)\.google\.com)/g,
             "replacement": "$1/!$2"
-            // 其它域资源
+            // 其它域资源: 偶尔出现id.google
         }
         ,{
             "pattern": /pushdown_promo:/,
@@ -41,7 +41,7 @@ var rules = {
         ,{
             "pattern": /"\/\/"/g,
             "replacement": "\"/!\""
-            // js-tag-part: dynamic load gstatic by string.join
+            // html.js: dynamic load gstatic by string.join
         }
         /*
         ,{
@@ -73,13 +73,13 @@ var rules = {
             "pathRegex": /\/rs=/,
             "pattern": /\.src=(\w)\b/g,
             "replacement": ".src=_DyRp($1)",
-            "insertHeader": 'window._DyRp=window._DyRp||function(a){if(typeof(a)==="string"){var p=location.protocol+"//"+location.host;if(a.startsWith(p)){var h=a.indexOf("/!",8);if(h>0){a=a.substr(h);}else{return a;}}return a.replace(/^([htps:]+)?\\/\\//,"/!")}return a};'
-            // js context: new Image dynamic load
+            "insertHeader": 'window._DyRp=window._DyRp||function(a){if(typeof(a)==="string"&&a.slice(0,4)=="data"){if(a.indexOf("//"+location.host)==0){var h=a.indexOf("/!",8);return h>0?a.substr(h):a;}else if(/\.(?:google|gstatic)/.test(a)){return a.replace(/^([htps:]+)?\\/\\//,"/!")}}return a;};'
+            // js context: dynamic load new Image; resolved dup host;
         }
         ,{
             "pattern": /"(?:[htps:]+)?\/\/(?=[-.\w]+\.(?:google|gstatic))/g,
             "replacement": '"/!'
-            // js context: literal string host
+            // js context: other literal url join
         }
         
     ],
@@ -88,12 +88,12 @@ var rules = {
             "pathRegex": /\/(search|webhp)/,
             "pattern": /onmousedown\\\\x3d/g,
             "replacement": "target\\\\x3d\\\\x22_blank\\\\x22 rwt\\\\x3d"
-            // 废掉ajax rwt
+            // json.html: ajax中多次转义的rwt
         }
         ,{
             "pattern": /(\()?(\\\\x22)?\\\/\\\/(?=[-\w]+\.gstatic)/g,
             "replacement": "$1$2\/!"
-            // css: image url
+            // json.css: 一些动态部件的image url
         }
         ,{
             "pathRegex": /\/(search|webhp)/,
@@ -105,13 +105,13 @@ var rules = {
             "pathRegex": /\/(search|webhp)/,
             "pattern": /(?:http(?:s)?:)?\\\/\\\/(?=id\.google)/,
             "replacement": "/!"
-            // js: /verify
+            // json.js: 偶发的id.google/verify
         }
         ,{
             "pathRegex": /\/(search|webhp)/,
             "pattern": /(src(?:\\{2}x\w{2}){2})([htps:]+)?(?:\\\/){2}/,
             "replacement": "$1/!"
-            // html: e.g. img src\\x3d\\x22https:\/\/encrypted.google.com\/finance\/chart
+            // json.html: e.g. img src\\x3d\\x22https:\/\/encrypted.google.com\/finance\/chart
         }
     ]
 };
