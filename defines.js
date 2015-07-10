@@ -19,7 +19,7 @@ var rules = {
             // 直接/search;手机;js不可用: rwt将直接在html中
         }
         ,{
-            "pattern": /(?:http(?:s)?:)?\/\/(?=[-\w]+\.gstatic)/g,
+            "pattern": /(?:http(?:s)?:)?\/\/(?=[-\w]+\.(?:gstatic|googleuser))/g,
             "replacement": "/!"
             // html.css: backgroud image from gstatic
         }
