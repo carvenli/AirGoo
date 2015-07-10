@@ -73,8 +73,14 @@ var rules = {
             "pathRegex": /\/rs=/,
             "pattern": /\.src=(\w)\b/g,
             "replacement": ".src=_DyRp($1)",
-            "insertHeader": 'window._DyRp=window._DyRp||function(a){if(typeof(a)==="string"&&a.slice(0,4)!="data"){if(a.indexOf("//"+location.host)>=0){var h=a.indexOf("/!",8);return h>0?a.substr(h):a;}else if(/\\.(?:google|gstatic)/.test(a)){return a.replace(/^([htps:]+)?\\/\\//,"/!")}}return a;};'
+            "insertHeader": 'window._DyRp=window._DyRp||function(a){if(typeof(a)==="string"&&a.slice(0,5)!="data:"){if(a.indexOf("//"+location.host)>=0){var h=a.indexOf("/!",8);return h>0?a.slice(h):a;}else if(/\\.(?:google|gstatic)/.test(a)){return a.replace(/^([htps:]+)?\\/\\//,"/!")}}return a;};'
             // js context: dynamic load new Image; resolved dup host;
+        }
+        ,{
+            "pathRegex": /\/js\/worker-eval\.js/,
+            "pattern": /^/,
+            "replacement": '_DyRp=function(a){if(typeof(a)==="string"&&a.slice(0,5)!="data:"){if(a.indexOf("//"+location.host)>=0){var h=a.indexOf("/!",8);return h>0?a.slice(h):a;}else if(/\\.(?:google|gstatic)/.test(a)){return a.replace(/^([htps:]+)?\\/\\//,"/!")}}return a;};'
+            // maps: /js/worker-eval.js repair func.
         }
         ,{
             "pattern": /"(?:[htps:]+)?\/\/(?=[-.\w]+\.(?:google|gstatic))/g,

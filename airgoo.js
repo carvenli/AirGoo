@@ -1,9 +1,9 @@
 var defines = require('./defines'),
-    CONF = defines.config(),
-    url = require('url'),
-    util = require('util'),
-    zlib = require('zlib'),
-    client = require(CONF.backend_https ? 'https' : 'http');
+CONF = defines.config(),
+url = require('url'),
+util = require('util'),
+zlib = require('zlib'),
+client = require(CONF.backend_https ? 'https' : 'http');
 
 var RULES = defines.rules;
 var TARGET = CONF.target;
@@ -14,7 +14,6 @@ var re_dyna = /html|json/;
 var excludedHeaders = defines.excludedHeaders;
 var preferLang = CONF.prefer_lang + ';q=0.9,en;q=0.1';
 client.globalAgent.maxSockets = 255;
-
 
 /**
  * 复制http header
@@ -57,7 +56,6 @@ function copyHeaders(src, dest, domain, ext) {
     return dest;
 }
 
-
 /**
  * 根据r1生成r2请求
  * 如果它域被拒绝则抛异常
@@ -66,11 +64,11 @@ function copyHeaders(src, dest, domain, ext) {
  */
 function buildRequest() {
     var req = this.r1,
-        options = {
-            hostname: TARGET.fullName,
-            path: req.url,
-            method: req.method
-        };
+    options = {
+        hostname : TARGET.fullName,
+        path : req.url,
+        method : req.method
+    };
     if (defines.startsWith(req.url, '/!')) {
         var pos = req.url.charAt(2) == '/' ? 4 : 2; // for double //
         var part = url.parse('//' + req.url.substr(pos), null, true);
@@ -86,15 +84,17 @@ function buildRequest() {
     }
     //options.path = (options.path.indexOf('?') > 0 ? '&' : '?') + 'nord=1';
     options.headers = copyHeaders(req.headers, {
-        'Connection': 'keep-alive',
-        'Accept-Language': preferLang,
-        'Accept-Encoding': 'gzip'
-    }, options.hostname, options.ext);
+            'Connection' : 'keep-alive',
+            'Accept-Language' : preferLang,
+            'Accept-Encoding' : 'gzip'
+        }, options.hostname, options.ext);
 
     var sorryRedirect = (options.headers['cookie'] || '').match(/_abused=([-.\w]+)/);
     if (util.isArray(sorryRedirect)) {
-        this._abused = options.hostname = sorryRedirect[1];
-        this._abusing = true;
+        options.hostname = sorryRedirect[1];
+        this._abused = {
+            host : options.hostname
+        };
     }
     return options;
 }
@@ -111,19 +111,22 @@ function isCookieRequired(req) {
 function cookRedirect(oldUrl) {
     var newUrl = url.parse(oldUrl);
     if (/\.google.*\bIndexRedirect/.test(oldUrl)) {
-        log(this.r1,'Google abuse inspection was detected.')
-        this._abused = newUrl.hostname;
-        this._abusedNew = true;
-    } else if (newUrl.hostname && newUrl.hostname !== TARGET.fullName && defines.allow(newUrl.hostname)) {
-        newUrl.pathname = '/!' + newUrl.hostname + newUrl.pathname;
-    } else {
-        return oldUrl;
+        log(this.r1, 'Google abuse inspection was detected.')
+        this._abused = {
+            host : newUrl.hostname,
+            isNew : true
+        };
+    } else if (newUrl.hostname && newUrl.hostname !== TARGET.fullName && !this._abuse_exempted && !/^ipv\d\.g/.test(newUrl.hostname)) {
+        if (defines.allow(newUrl.hostname)) {
+            newUrl.pathname = '/!' + newUrl.hostname + newUrl.pathname;
+        } else {
+            return oldUrl;
+        }
     }
     newUrl.host = this.origHost;
     newUrl.protocol = this.origProto + ':';
     return url.format(newUrl);
 }
-
 
 /**
  * 当trust_proxy后，用forwarded-for作为client地址
@@ -135,7 +138,8 @@ function log() {
     if (!CONF.logging || arguments.length < 1)
         return;
 
-    var req, address, args = Array.prototype.slice.call(arguments);
+    var req, address,
+    args = Array.prototype.slice.call(arguments);
     if (args[0].headers) { // is request obj.
         req = args[0];
     } else {
@@ -158,13 +162,13 @@ function log() {
 /**
  * 请求会话
  */
-var AirGooSession = function(r1, r4, args) {
+var AirGooSession = function (r1, r4, args) {
     this.r1 = r1;
     this.path = r1.url;
     this.r4 = r4;
     defines.apply(this, args);
 
-    var abort = function(code, msg, logs) {
+    var abort = function (code, msg, logs) {
         r4.writeHead(code);
         r4.end(msg);
         if (util.isArray(logs)) {
@@ -194,7 +198,7 @@ var AirGooSession = function(r1, r4, args) {
      * 检查响应头，检查设置zip,cache等，为r4准备头
      * @param r3 {response} Google response
      */
-    this.prepare = function(r3) {
+    this.prepare = function (r3) {
         this.r3_content_length = parseInt(r3.headers['content-length'] || -1);
         if (CONF.max_transmit_size > 0 && this.r3_content_length > CONF.max_transmit_size) {
             throw new Error('Size exceeds');
@@ -207,25 +211,29 @@ var AirGooSession = function(r1, r4, args) {
         // 某些ajax
         if (r3.headers['content-disposition'])
             this.cacheable = false;
-        this.r4_headers = copyHeaders(r3.headers, {}, this.origHost,
-            this.r2_opts.ext ? this.r2_opts.hostname : false);
-
-        log(this.r1, '[%s] - %s %d', r3.statusCode, this.path, this.r3_content_length);
-        // all Redirect
         var _location = r3.headers['location'];
+        var _exempted = this._abused && /=GOOGLE_ABUSE_EXEMPTION/.test(_location);
+        if (_exempted) {
+            this.r2_opts.ext = false;
+            this._abuse_exempted = true;
+        }
+        this.r4_headers = copyHeaders(r3.headers, {}, this.origHost,
+                this.r2_opts.ext ? this.r2_opts.hostname : false);
+
+        log(this.r1, '[%s] %s %d', r3.statusCode, this.path, this.r3_content_length);
+        // dispose of Redirect from r3
         if (r3.statusCode / 10 >> 0 === 30 && _location) {
             log(this.r1, 'Cooking redirect of ' + _location);
             this.r4_headers['location'] = cookRedirect.call(this, _location);
         }
     };
 
-
     /**
      *
      * @param len {int}
      * @param zipped {boolean}
      */
-    this.sendHeader = function(len, zipped) {
+    this.sendHeader = function (len, zipped) {
         if (this.cacheable && CONF.force_cached_time > 0) {
             var cacheControl = this.r4_headers['cache-control'];
             // middleware cache need public.
@@ -259,24 +267,22 @@ var AirGooSession = function(r1, r4, args) {
             if (defines.isString(setCookies)) {
                 setCookies = [setCookies];
             }
-            var _exempted = /=GOOGLE_ABUSE_EXEMPTION/.test(this.r4_headers['location']);
-            if (this._abusing && _exempted) {
+            if (this._abuse_exempted) {
                 setCookies.push('_abused=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT');
-            } else if (this._abusedNew) {
-                setCookies.push(defines.format('_abused=%s; path=/; expires=%s', this._abused, new Date(Date.now() + 3e6).toGMTString()));
+            } else if (this._abused.isNew) {
+                setCookies.push(defines.format('_abused=%s; path=/; expires=%s', this._abused.host, new Date(Date.now() + 3e5).toGMTString()));
             }
             this.r4_headers['set-cookie'] = setCookies;
         }
         this.r4.writeHead(this.r3_statusCode, this.r4_headers);
     };
 
-
     /**
      * 用Rules对三种文本内容处理，非文本则跳过
      * @param content Buffer
      * @returns {*}
      */
-    this.processContent = function(content) {
+    this.processContent = function (content) {
         var rules;
         if (defines.contains(this.r3_contentType, 'html')) {
             rules = RULES.html;
@@ -287,8 +293,9 @@ var AirGooSession = function(r1, r4, args) {
         }
         if (rules && content) {
             var str = content.toString(),
-                insertHeaders = [],
-                replacement;
+            insertHeaders = [],
+            ln = '\n',
+            replacement;
             for (var rule, i = 0, len = rules.length; i < len; i++) {
                 rule = rules[i];
                 if (rule.pathRegex && !rule.pathRegex.test(this.path)) {
@@ -297,9 +304,9 @@ var AirGooSession = function(r1, r4, args) {
                 replacement = rule.replacement;
                 if (replacement.indexOf('{') >= 0) {
                     var self = this;
-                    replacement = replacement.replace(/\{(\w+)}/g, function(ma, g1){
-                        return self[g1] || ma;
-                    });
+                    replacement = replacement.replace(/\{(\w+)}/g, function (ma, g1) {
+                            return self[g1] || ma;
+                        });
                 }
                 if (rule.insertHeader) {
                     insertHeaders.push(rule.insertHeader);
@@ -307,9 +314,9 @@ var AirGooSession = function(r1, r4, args) {
                 str = str.replace(rule.pattern, replacement);
             }
             if (insertHeaders.length) {
-                return new Buffer(insertHeaders.join('') + str);
+                return new Buffer(insertHeaders.join(ln) + ln + str);
             } else {
-                return new Buffer(str);;
+                return new Buffer(str);
             }
         }
         return content;
@@ -320,13 +327,13 @@ var AirGooSession = function(r1, r4, args) {
      * @param err
      * @param body {Buffer}
      */
-    this.send = function(err, body) {
+    this.send = function (err, body) {
         if (body.length) {
             body = this.processContent(body);
         }
         // 有数据,且允许r4压缩
         if (CONF.gzip_r4 && body.length > 0) {
-            zlib.gzip(body, function(err, buf) {
+            zlib.gzip(body, function (err, buf) {
                 if (err) {
                     log(util.inspect(err));
                     this.cacheable = false;
@@ -344,52 +351,52 @@ var AirGooSession = function(r1, r4, args) {
         }
     };
 
-    this.doProxy = function(bodyData) {
+    this.doProxy = function (bodyData) {
         var that = this;
-        var req = client.request(this.r2_opts, function(r3) {
-            try {
-                that.prepare(r3);
-            } catch (e) { // size
-                this.abort();
-                that.deny = true;
-                return abort(403, e.message || String(e), 'Denied : ' + that.path);
-            }
-            var zipped = that.r3_contentEncoding === 'gzip';
-            if (that.textType) {
-                var definite = that.r3_content_length > 0,
+        var req = client.request(this.r2_opts, function (r3) {
+                try {
+                    that.prepare(r3);
+                } catch (e) { // size
+                    this.abort();
+                    that.deny = true;
+                    return abort(403, e.message || String(e), 'Denied : ' + that.path);
+                }
+                var zipped = that.r3_contentEncoding === 'gzip';
+                if (that.textType) {
+                    var definite = that.r3_content_length > 0,
                     offset = 0;
-                var body = new Buffer(definite ? that.r3_content_length : 0);
-                r3.on('end', function() {
-                    if (zipped) {
-                        zlib.gunzip(body, that.send.bind(that));
-                    } else {
-                        that.send(null, body);
-                    }
-                }).on('data', function(data) {
-                    if (definite) {
-                        data.copy(body, offset);
-                        offset += data.length;
-                    } else {
-                        body = Buffer.concat([body, data]);
-                    }
-                });
-            } else {
-                // 非文本直接通过
-                that.sendHeader(that.r3_content_length, zipped);
-                r3.pipe(that.r4);
-            }
-        }).on('error', function(e) {
-            // Error in r3.
-            abort(500, e.message || String(e));
-        }).end(bodyData);
+                    var body = new Buffer(definite ? that.r3_content_length : 0);
+                    r3.on('end', function () {
+                        if (zipped) {
+                            zlib.gunzip(body, that.send.bind(that));
+                        } else {
+                            that.send(null, body);
+                        }
+                    }).on('data', function (data) {
+                        if (definite) {
+                            data.copy(body, offset);
+                            offset += data.length;
+                        } else {
+                            body = Buffer.concat([body, data]);
+                        }
+                    });
+                } else {
+                    // 非文本直接通过
+                    that.sendHeader(that.r3_content_length, zipped);
+                    r3.pipe(that.r4);
+                }
+            }).on('error', function (e) {
+                // Error in r3.
+                abort(500, e.message || String(e));
+            }).end(bodyData);
     };
 };
 
-var AirGooServer = function() {
+var AirGooServer = function () {
 
     var self = this;
 
-    this.requestHandler = function(r1, r4) {
+    this.requestHandler = function (r1, r4) {
         if (self.preHandler(r1, r4)) {
             return;
         }
@@ -413,26 +420,26 @@ var AirGooServer = function() {
         }
         if (CONF.force_https && origProto !== 'https') {
             r4.writeHead(301, {
-                'Location': 'https://' + origHost
+                'Location' : 'https://' + origHost
             });
             r4.end();
             log(r1, 'redirect to https from %s%s', origHost, r1.url);
             return;
         }
         var session = new AirGooSession(r1, r4, {
-            origHost: origHost,
-            origProto: origProto
-        });
+                origHost : origHost,
+                origProto : origProto
+            });
         if (session.deny) {
             return;
         }
         if (session.bodyLength) {
             var data = new Buffer(session.bodyLength),
-                offset = 0;
-            r1.on('data', function(chunk) {
+            offset = 0;
+            r1.on('data', function (chunk) {
                 chunk.copy(data, offset);
                 offset += chunk.length;
-            }).on('end', function() {
+            }).on('end', function () {
                 console.log('post: ' + data);
                 session.doProxy(data);
             });
@@ -441,17 +448,17 @@ var AirGooServer = function() {
         }
     };
 
-    this.preHandler = function(r1, r4) {
+    this.preHandler = function (r1, r4) {
         if (/^\/(\w+_204|imghover)/.test(r1.url)) {
             r4.writeHead(204, {
-                'content-type': 'text/html; charset=UTF-8'
+                'content-type' : 'text/html; charset=UTF-8'
             });
             r4.end();
             return true;
         }
         if (defines.startsWith(r1.url, '/robots.txt')) {
             r4.writeHead(200, {
-                'content-type': 'text/plain'
+                'content-type' : 'text/plain'
             });
             r4.end('User-agent: *\nDisallow: / ');
             return true;
@@ -467,7 +474,6 @@ var AirGooServer = function() {
         log('AirGoo-Server stopped.');
     };
 
-
     /**
      *  Setup termination handlers (for exit and a list of signals).
      */
@@ -476,29 +482,30 @@ var AirGooServer = function() {
         process.on('exit', self.terminator.bind(self));
 
         ['SIGHUP', 'SIGINT', 'SIGQUIT', 'SIGILL', 'SIGTRAP', 'SIGABRT',
-            'SIGBUS', 'SIGFPE', 'SIGUSR1', 'SIGSEGV', /*'SIGUSR2',*/ 'SIGTERM' // todo
-        ].forEach(function(element, index, array) {
-            process.on(element, function() {
+            'SIGBUS', 'SIGFPE', 'SIGUSR1', 'SIGSEGV', /*'SIGUSR2',*/
+            'SIGTERM' // todo
+        ].forEach(function (element, index, array) {
+            process.on(element, function () {
                 self.terminator(element);
             });
         });
     };
 
-    this.initialize = function(options) {
+    this.initialize = function (options) {
         self.options = options;
         self.setupTerminationHandlers();
         return self;
     };
 
-    this.start = function() {
+    this.start = function () {
         if (!self.options)
             throw new Error('Not initialized');
 
         require('http').createServer(self.requestHandler)
-            .on('listening', function() {
-                log('AirGoo-Server v%s started on %s', defines.version, this._connectionKey);
-            })
-            .listen(self.options.port, self.options.addr);
+        .on('listening', function () {
+            log('AirGoo-Server v%s started on %s', defines.version, this._connectionKey);
+        })
+        .listen(self.options.port, self.options.addr);
     }
 
 };
