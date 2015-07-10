@@ -29,9 +29,9 @@ var rules = {
             // W域下资源
         }
         ,{
-            "pattern": /(['\"])(?:http(?:s)?:)?\/\/((?:id|ipv\d)\.google\.com)/g,
+            "pattern": /(['\"])(?:http(?:s)?:)?\/\/((?:id|ipv\d|mt\d)\.google\.com)/g,
             "replacement": "$1/!$2"
-            // 其它域资源: 偶尔出现id.google
+            // 其它域资源: 偶现id.google mt0
         }
         ,{
             "pattern": /pushdown_promo:/,
