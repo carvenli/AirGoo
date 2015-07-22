@@ -57,12 +57,13 @@ var rules = {
             "replacement": ""
              // 重写主域资源绝对地址
         }
-        /*
         ,{
             "pathRegex": /\/xjs/,
-            "pattern": /window\.Image/g,
-            "replacement": "Object"
+            "pattern": /url\(\/\/(?=\w)/g,
+            "replacement": "url\(/!"
+            // js context: literal css url
         }
+        /*
         ,{
             "pattern": /_\.mg=/,
             "replacement": "_.mg=function(){};_mg="
