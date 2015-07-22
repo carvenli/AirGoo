@@ -1,7 +1,7 @@
 {
 	"name" : "AirGoo",
 	"version" : "1.1.5",
-	"description" : "A shortcut to access Google service.",
+	"description" : "Reverse proxy for Google search.",
 	"main" : "server.js",
 	"repository" : {
 		"type" : "git",
