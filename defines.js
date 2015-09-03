@@ -161,7 +161,7 @@ var helps = [
     '\t A shortcut to access Google service, Beating the firewall.',
     '',
     'More information:',
-    '\t AirGoo@Github <http://github.com/spance/AirGoo>',
+    '\t AirGoo@Github <https://github.com/Lafeng/AirGoo>',
     'If you need help, you could ask questions on AirGoo@Github.issues',
     '', [
         'Usage: node', mainName()[1],
